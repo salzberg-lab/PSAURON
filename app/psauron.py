@@ -143,7 +143,7 @@ def eye_of_psauron():
     warnings.filterwarnings('ignore')
     
     # print PSAURON version
-    version = "0.1.6"
+    version = "1.0.0"
     print("PSAURON version", version)
     
     # parse command line arguments
@@ -166,7 +166,6 @@ def eye_of_psauron():
         print("cannot set both -s and -p, type psauron -h for detailed help documentation.")
         sys.exit()
     # TODO check correctness of file contents vs. -p setting. currently does not warn when run with -p on CDS.
-    # TODO more user test cases
     
     # i did my best
     if verbose:
