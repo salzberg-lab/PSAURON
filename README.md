@@ -2,7 +2,6 @@ PSAURON
 ===========
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg "License")
-
 [![codecov](https://codecov.io/github/salzberg-lab/PSAURON/graph/badge.svg?token=GP88IZQFKA)](https://codecov.io/github/salzberg-lab/PSAURON)
 
 **PSAURON** is a machine learning model for rapid assessment of protein coding gene annotation. Link to paper coming soon...
