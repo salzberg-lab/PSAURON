@@ -35,6 +35,7 @@ def get_args():
     parser.add_argument("-c", "--use-cpu", action='store_true', help="OPTIONAL set -c to force usage of CPU instead of GPU, default=False", default=False)
     parser.add_argument("-s", "--single-frame", action='store_true', help="OPTIONAL set -s to score only the in-frame CDS, which may lower accuracy of the model, default=False", default=False)
     parser.add_argument("-p", "--protein", action='store_true', help="OPTIONAL set -p if your FASTA contains amino acid protein sequence, which may lower accuracy of the model, default=False", default=False)
+    parser.add_argument("-a", "--all-prob", action='store_true', help="OPTIONAL set -a to output per-amino-acid predicted probabilities, NOTE: these may not behave as expected due to receptive field size, default=False", default=False)
     parser.add_argument("-v", "--verbose", action='store_true', help="OPTIONAL set -v for verbose output with progress bars etc., default=False", default=False)
 
     args = parser.parse_args()
@@ -88,7 +89,7 @@ def predict(X, model, use_cpu):
 
     return probs
     
-def score_seq(aa_seq_list, model, use_cpu, verbose, gene_batch_size=100):
+def score_seq(aa_seq_list, model, use_cpu, allprob, verbose, gene_batch_size=100):
     # format seqs
     ORF_seq_enc = [tokenize_aa_seq(str(x)) for x in aa_seq_list]
 
@@ -99,6 +100,7 @@ def score_seq(aa_seq_list, model, use_cpu, verbose, gene_batch_size=100):
 
     # pad to allow creation of batch matrix
     prob_list = []
+    prob_list_allprob = []
     if verbose:
         for i in tqdm(range(0, len(ORF_seq_sorted), gene_batch_size), unit=" batch"):
             batch = ORF_seq_sorted[i:i+gene_batch_size]
@@ -108,12 +110,15 @@ def score_seq(aa_seq_list, model, use_cpu, verbose, gene_batch_size=100):
                 seq_tensor[idx, :seqlen] = torch.LongTensor(seq)
             pred_all = predict(seq_tensor, model, use_cpu)
             pred = []
+            pred_allprob = []
             for j, length in enumerate(seq_lengths):
                 subseq = pred_all[j, 0, 0:int(length)]
                 idx = min(100, int(length) - 1) # avoids NaNs
                 predprob = float(expit(torch.mean(logit(subseq[idx:]))))
                 pred.append(predprob)
+                pred_allprob.append(subseq.tolist())
             prob_list.extend(pred)
+            prob_list_allprob.extend(pred_allprob)
         prob_arr = np.asarray(prob_list, dtype=float)
     else:
         for i in range(0, len(ORF_seq_sorted), gene_batch_size):
@@ -124,19 +129,28 @@ def score_seq(aa_seq_list, model, use_cpu, verbose, gene_batch_size=100):
                 seq_tensor[idx, :seqlen] = torch.LongTensor(seq)
             pred_all = predict(seq_tensor, model, use_cpu)
             pred = []
+            pred_allprob = []
             for j, length in enumerate(seq_lengths):
                 subseq = pred_all[j, 0, 0:int(length)]
                 idx = min(100, int(length) - 1) # avoids NaNs
                 predprob = float(expit(torch.mean(logit(subseq[idx:]))))
                 pred.append(predprob)
+                pred_allprob.append(subseq.tolist())
             prob_list.extend(pred)
+            prob_list_allprob.extend(pred_allprob)
         prob_arr = np.asarray(prob_list, dtype=float)
 
     # unsort
     unsort_idx = np.argsort(length_idx)
     ORF_prob = prob_arr[unsort_idx]
-
-    return ORF_prob
+    
+    # unsort allprob, differing lengths mean this can't be a np array
+    ORF_prob_allprob = []
+    if allprob:
+        for idx in unsort_idx:
+            ORF_prob_allprob.append(prob_list_allprob[idx])
+    
+    return ORF_prob, ORF_prob_allprob
     
 def eye_of_psauron():
     # supress annoying warnings
@@ -155,6 +169,7 @@ def eye_of_psauron():
     min_len_aa = args.minimum_length
     p_fasta = args.input_fasta
     use_cpu = args.use_cpu
+    allprob = args.all_prob
     verbose = args.verbose
     single_frame = args.single_frame
     protein = args.protein
@@ -297,10 +312,11 @@ def eye_of_psauron():
             else:
                 print("No GPU detected, running TCN model on CPU...")
             print("Scoring in-frame sequence...")
-            ORF_prob = score_seq(ORF_list_aa_flat_clean, model, use_cpu, verbose)
+            ORF_prob, ORF_prob_allprob = score_seq(ORF_list_aa_flat_clean, model, use_cpu, allprob, verbose)
             print("Scoring out-of-frame sequence...")
-            ARF_prob = score_seq(ARF_list_aa_flat_clean, model, use_cpu, verbose)
+            ARF_prob, ARF_prob_allprob = score_seq(ARF_list_aa_flat_clean, model, use_cpu, allprob, verbose)
             ARF_prob = [ARF_prob[i:i+5] for i in range(0, len(ARF_prob), 5)]    
+            ARF_prob_allprob = [ARF_prob_allprob[i:i+5] for i in range(0, len(ARF_prob_allprob), 5)]
             
             # create meta-score for each CDS
             ORF_bound = args.inframe # ORF must be >= ORF_bound
@@ -360,7 +376,7 @@ def eye_of_psauron():
             else:
                 print("No GPU detected, running TCN model on CPU...")
             print("Scoring in-frame sequence...")
-            ORF_prob = score_seq(ORF_list_aa_flat_clean, model, use_cpu, verbose)
+            ORF_prob, ORF_prob_allprob = score_seq(ORF_list_aa_flat_clean, model, use_cpu, allprob, verbose)
             
             # create score for each CDS
             ORF_bound = args.inframe # ORF must be >= ORF_bound
@@ -433,7 +449,7 @@ def eye_of_psauron():
         else:
             print("No GPU detected, running TCN model on CPU...")
         print("Scoring in-frame sequence...")
-        ORF_prob = score_seq(ORF_list_aa_flat_clean, model, use_cpu, verbose)
+        ORF_prob, ORF_prob_allprob = score_seq(ORF_list_aa_flat_clean, model, use_cpu, allprob, verbose)
         
         # create score for each CDS
         ORF_bound = args.inframe # ORF must be >= ORF_bound
@@ -457,41 +473,83 @@ def eye_of_psauron():
     if not single_frame and not protein:
         print("\npsauron score:", ss)
         print("\nWriting detailed output file to", p_out)
+        if allprob:
+            print("NOTE: all_prob cells in .csv output may exceed Microsoft Excel max cell size limit")
+
         cols = ["description", "psauron_is_protein", "in_frame_score",
                 "forward_frame2_score", "forward_frame3_score", 
                 "reverse_frame1_score", "reverse_frame2_score", 
                 "reverse_frame3_score", "mean_out_of_frame_score"]
+        if allprob:
+            cols.extend(["in_frame_all_prob", "forward_frame2_all_prob",
+                         "forward_frame3_all_prob", "reverse_frame1_all_prob",
+                         "reverse_frame2_all_prob", "reverse_frame3_all_prob"])   
+             
         header = " ".join(sys.argv) + "\n" + "psauron score: " + str(ss) + "\nNOTE: alternate reading frames may not contain valid ORFs"
         with open(p_out, "wt") as f:
             f.write(header + "\n")
             f.write(",".join(cols) + "\n")
             for i, desc in enumerate(description_list_clean):
-                # removes all "," in data to avoid .csv errors
-                f.write(",".join([str(x).replace(",", "") for x in [desc, 
-                                                                    is_protein[i],
-                                                                    round(ORF_score_all[i], 5),
-                                                                    round(ARF_score_all[i][0], 5),
-                                                                    round(ARF_score_all[i][1], 5),
-                                                                    round(ARF_score_all[i][2], 5),
-                                                                    round(ARF_score_all[i][3], 5),
-                                                                    round(ARF_score_all[i][4], 5),
-                                                                    round(ARF_score_mean_all[i], 5)]]))
-                f.write("\n")
+                if allprob:
+                    # remove all "," in data to avoid .csv errors
+                    f.write(",".join([str(x).replace(",", "") for x in [desc, 
+                                                                        is_protein[i],
+                                                                        round(ORF_score_all[i], 5),
+                                                                        round(ARF_score_all[i][0], 5),
+                                                                        round(ARF_score_all[i][1], 5),
+                                                                        round(ARF_score_all[i][2], 5),
+                                                                        round(ARF_score_all[i][3], 5),
+                                                                        round(ARF_score_all[i][4], 5),
+                                                                        round(ARF_score_mean_all[i], 5),
+                                                                        ";".join([str(round(x,2)) for x in ORF_prob_allprob[i]]),
+                                                                        ";".join([str(round(x,2)) for x in ARF_prob_allprob[i][0]]),
+                                                                        ";".join([str(round(x,2)) for x in ARF_prob_allprob[i][1]]),
+                                                                        ";".join([str(round(x,2)) for x in ARF_prob_allprob[i][2]]),
+                                                                        ";".join([str(round(x,2)) for x in ARF_prob_allprob[i][3]]),
+                                                                        ";".join([str(round(x,2)) for x in ARF_prob_allprob[i][4]]),
+                                                                        ]]))
+                    f.write("\n")
+                else:
+                    # remove all "," in data to avoid .csv errors
+                    f.write(",".join([str(x).replace(",", "") for x in [desc, 
+                                                                        is_protein[i],
+                                                                        round(ORF_score_all[i], 5),
+                                                                        round(ARF_score_all[i][0], 5),
+                                                                        round(ARF_score_all[i][1], 5),
+                                                                        round(ARF_score_all[i][2], 5),
+                                                                        round(ARF_score_all[i][3], 5),
+                                                                        round(ARF_score_all[i][4], 5),
+                                                                        round(ARF_score_mean_all[i], 5)]]))
+                    f.write("\n")
     
     else:
         print("\npsauron score:", ss)
         print("\nWriting detailed output file to", p_out)
+        if allprob:
+            print("NOTE: all_prob cells in .csv output may exceed Microsoft Excel max cell size limit")
+        
         cols = ["description", "psauron_is_protein", "in-frame_score"]
+        if allprob:
+            cols.extend(["in_frame_all_prob"])
+                         
         header = " ".join(sys.argv) + "\n" + "psauron score: " + str(ss)
         with open(p_out, "wt") as f:
             f.write(header + "\n")
             f.write(",".join(cols) + "\n")
             for i, desc in enumerate(description_list_clean):
-                # removes all "," in data to avoid .csv errors
-                f.write(",".join([str(x).replace(",", "") for x in [desc, 
-                                                                    is_protein[i],
-                                                                    round(ORF_score_all[i], 5)]]))
-                f.write("\n")
+                if allprob:
+                    # removes all "," in data to avoid .csv errors
+                    f.write(",".join([str(x).replace(",", "") for x in [desc, 
+                                                                        is_protein[i],
+                                                                        round(ORF_score_all[i], 5),
+                                                                        ";".join([str(round(x,2)) for x in ORF_prob_allprob[i]])]]))
+                    f.write("\n")
+                else:
+                    # removes all "," in data to avoid .csv errors
+                    f.write(",".join([str(x).replace(",", "") for x in [desc, 
+                                                                        is_protein[i],
+                                                                        round(ORF_score_all[i], 5)]]))
+                    f.write("\n")
     
     print("Done")
     

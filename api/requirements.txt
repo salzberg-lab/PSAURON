@@ -10,3 +10,4 @@ pandas>=2.0.3
 pytest>=7.0
 twine>=4.0.2
 pytest-cov>=4.0
+setuptools
