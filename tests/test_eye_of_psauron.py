@@ -61,3 +61,8 @@ def test_eye_of_psauron_badargs2():
     with unittest.mock.patch('sys.argv', ['psauron', '-i', 'tests/seq_test_CDS.fa', '-p', '-s']):
         with pytest.raises(SystemExit):
             eye_of_psauron()
+            
+def test_eye_of_psauron_allprob():
+    with unittest.mock.patch('sys.argv', ['psauron', '-i', 'tests/seq_test_CDS.fa', '-p', '-s', '-a']):
+        with pytest.raises(SystemExit):
+            eye_of_psauron()
