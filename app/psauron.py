@@ -1,9 +1,6 @@
 import os
 import sys
-import copy
-import time
-import pandas
-import pickle
+import gzip
 import argparse
 import warnings
 import numpy as np
@@ -14,15 +11,37 @@ import pkg_resources
 from scipy.special import expit, logit
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
-from multiprocessing import Pool
-
-from Bio import SeqIO
-from Bio.Seq import Seq
+# from multiprocessing import Pool
+# import subprocess
 
 from app.TCN_model import TCN, tokenize_aa_seq
+
+trans_table = {
+    "AAA": "K", "AAC": "N", "AAG": "K", "AAT": "N", "AAR": "K", "AAY": "N", "ACA": "T", "ACC": "T",
+    "ACG": "T", "ACT": "T", "ACR": "T", "ACY": "T", "ACS": "T", "ACW": "T", "ACK": "T", "ACM": "T",
+    "ACB": "T", "ACD": "T", "ACH": "T", "ACV": "T", "ACN": "T", "AGA": "R", "AGC": "S", "AGG": "R",
+    "AGT": "S", "AGR": "R", "AGY": "S", "ATA": "I", "ATC": "I", "ATG": "M", "ATT": "I", "ATY": "I",
+    "ATW": "I", "ATM": "I", "ATH": "I", "CAA": "Q", "CAC": "H", "CAG": "Q", "CAT": "H", "CAR": "Q", 
+    "CAY": "H", "CCA": "P", "CCC": "P", "CCG": "P", "CCT": "P", "CCR": "P", "CCY": "P", "CCS": "P", 
+    "CCW": "P", "CCK": "P", "CCM": "P", "CCB": "P", "CCD": "P", "CCH": "P", "CCV": "P", "CCN": "P", 
+    "CGA": "R", "CGC": "R", "CGG": "R", "CGT": "R", "CGR": "R", "CGY": "R", "CGS": "R", "CGW": "R", 
+    "CGK": "R", "CGM": "R", "CGB": "R", "CGD": "R", "CGH": "R", "CGV": "R", "CGN": "R", "CTA": "L", 
+    "CTC": "L", "CTG": "L", "CTT": "L", "CTR": "L", "CTY": "L", "CTS": "L", "CTW": "L", "CTK": "L", 
+    "CTM": "L", "CTB": "L", "CTD": "L", "CTH": "L", "CTV": "L", "CTN": "L", "GAA": "E", "GAC": "D", 
+    "GAG": "E", "GAT": "D", "GAR": "E", "GAY": "D", "GCA": "A", "GCC": "A", "GCG": "A", "GCT": "A", 
+    "GCR": "A", "GCY": "A", "GCS": "A", "GCW": "A", "GCK": "A", "GCM": "A", "GCB": "A", "GCD": "A", 
+    "GCH": "A", "GCV": "A", "GCN": "A", "GGA": "G", "GGC": "G", "GGG": "G", "GGT": "G", "GGR": "G", 
+    "GGY": "G", "GGS": "G", "GGW": "G", "GGK": "G", "GGM": "G", "GGB": "G", "GGD": "G", "GGH": "G", 
+    "GGV": "G", "GGN": "G", "GTA": "V", "GTC": "V", "GTG": "V", "GTT": "V", "GTR": "V", "GTY": "V", 
+    "GTS": "V", "GTW": "V", "GTK": "V", "GTM": "V", "GTB": "V", "GTD": "V", "GTH": "V", "GTV": "V", 
+    "GTN": "V", "TAA": "*", "TAC": "Y", "TAG": "*", "TAT": "Y", "TAR": "*", "TAY": "Y", "TCA": "S", 
+    "TCC": "S", "TCG": "S", "TCT": "S", "TCR": "S", "TCY": "S", "TCS": "S", "TCW": "S", "TCK": "S", 
+    "TCM": "S", "TCB": "S", "TCD": "S", "TCH": "S", "TCV": "S", "TCN": "S", "TGA": "*", "TGC": "C", 
+    "TGG": "W", "TGT": "C", "TGY": "C", "TTA": "L", "TTC": "F", "TTG": "L", "TTT": "F", "TTR": "L", 
+    "TTY": "F", "TRA": "*", "YTA": "L", "YTG": "L", "YTR": "L", "MGA": "R", "MGG": "R", "MGR": "R"
+}
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -74,6 +93,79 @@ def reverse_complement(dna):
     # reverse complements DNA seq, returns A for all chars not in dict
     complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
     return ''.join([complement.get(base, 'A') for base in dna[::-1]])
+
+def translate(sequence):
+    dna_sequence = sequence.upper().strip()
+    # truncate to last full codon
+    length = len(dna_sequence)
+    if length < 3:
+        return ""
+    dna_sequence = dna_sequence[:length-(length % 3)]
+    dna_sequence = dna_sequence.replace('U', 'T') # replaces U with T in case of RNA
+
+    if set(dna_sequence) - {"A", "C", "G", "T", "R", "Y", "S", "W", "K", "M", "B", "D", "H", "V", "N"}: 
+        raise ValueError(f"Sequence {dna_sequence} contains illegal letters")
+
+    protein_sequence = []
+
+    for i in range(0, len(dna_sequence), 3):
+        codon = dna_sequence[i:i+3]
+        amino_acid = trans_table.get(codon, 'X')
+        protein_sequence.append(amino_acid)
+
+    protein_string = ''.join(protein_sequence)
+
+    return protein_string
+
+def load_fasta(filepath):
+    '''Loads a FASTA file and returns a list of descriptions and a list of sequences'''
+    print("Loading transcripts at", filepath)
+    if filepath[-3:].lower() == ".gz":
+        f = gzip.open(filepath, "rt")
+    else:
+        f = open(filepath, "rt")
+    
+    description_list = []
+    seq_list = []
+    for name, seq, qual in readfq(f):
+        description_list.append(name)
+        seq_list.append(seq)
+    
+    f.close()
+    print("Loaded...\n")
+    return description_list, seq_list
+    
+def readfq(fp): 
+    """this is a generator function copied from Heng Li's readfq project https://github.com/lh3/readfq/blob/master/readfq.py"""
+    last = None # this is a buffer keeping the last unprocessed line
+    while True: # mimic closure; is it a bad idea?
+        if not last: # the first record or a record following a fastq
+            for l in fp: # search for the start of the next record
+                if l[0] in '>@': # fasta/q header line
+                    last = l[:-1] # save this line
+                    break
+        if not last: break
+        name, seqs, last = last[1:].partition(" ")[0], [], None
+        for l in fp: # read the sequence
+            if l[0] in '@+>':
+                last = l[:-1]
+                break
+            seqs.append(l[:-1])
+        if not last or last[0] != '+': # this is a fasta record
+            yield name, ''.join(seqs), None # yield a fasta record
+            if not last: break
+        else: # this is a fastq record
+            seq, leng, seqs = ''.join(seqs), 0, []
+            for l in fp: # read the quality
+                seqs.append(l[:-1])
+                leng += len(l) - 1
+                if leng >= len(seq): # have read enough quality
+                    last = None
+                    yield name, seq, ''.join(seqs); # yield a fastq record
+                    break
+            if last: # reach EOF before reading enough quality
+                yield name, seq, None # yield a fasta record instead
+                break
     
 def predict(X, model, use_cpu):
     model.eval()
@@ -232,23 +324,21 @@ def eye_of_psauron():
     if not args.protein:
         # load CDS from fasta
         print("Loading CDS FASTA...")
-        seq_list = []
-        contig_name_sublist = []
-        contig_length_sublist = []
-        description_list = []
+        description_list, seq_list = load_fasta(p_fasta)
         n_excluded = 0
-        with open(p_fasta, "rt") as f:
-            for record in SeqIO.parse(f, "fasta"):
-                if (len(args.exclude) > 0) and (args.exclude).lower() in (record.description).lower():
-                    n_excluded += 1
+        if args.exclude:
+            new_description_list = []
+            new_seq_list = []
+            for desc, seq in zip(description_list, seq_list):
+                if args.exclude.lower() not in desc.lower():
+                    new_description_list.append(desc)
+                    new_seq_list.append(seq)
                 else:
-                    seq_list.append(record.seq)
-                    contig_name_sublist.append(record.id)
-                    contig_length_sublist.append(len(record.seq))
-                    description_list.append(record.description)
+                    n_excluded += 1
+            description_list = new_description_list
+            seq_list = new_seq_list
                     
-                
-        print("Loaded", str(len(seq_list)), "CDS seqences...")
+        print("Loaded", str(len(seq_list)), "CDS sequences...")
         if len(args.exclude) > 0:
             print("Excluding", str(n_excluded), "sequences containing", "\"" + str(args.exclude) + "\"")
             
@@ -256,10 +346,9 @@ def eye_of_psauron():
         if len(seq_list) == 0:
             print("No data to score, please check data and/or arguments.")
             sys.exit()
-            
+        
         # uppercase and remove N's
         seq_list = [str(x).upper().replace("N", "A") for x in seq_list]
-        
         
         # ALL FRAME SCORING, DEFAULT BEHAVIOR
         if not single_frame:
@@ -276,20 +365,21 @@ def eye_of_psauron():
             ARF_list_aa = []
             if verbose:
                 for i in tqdm(range(len(seq_list))):
-                    ORF_list_aa.append(Seq(seq_list[i]).translate())
-                    ARF_list_aa.append([Seq(x).translate() for x in ARF_list[i]])
+                    ORF_list_aa.append(translate(seq_list[i]))
+                    ARF_list_aa.append([translate(x) for x in ARF_list[i]])
             else:
                 for i in range(len(seq_list)):
-                    ORF_list_aa.append(Seq(seq_list[i]).translate())
-                    ARF_list_aa.append([Seq(x).translate() for x in ARF_list[i]])
+                    ORF_list_aa.append(translate(seq_list[i]))
+                    ARF_list_aa.append([translate(x) for x in ARF_list[i]])
             
             # remove stop codons from alternate reading frames
             ORF_list_aa = [s.replace('*', '') for s in ORF_list_aa]
             ARF_list_aa = [[s.replace('*', '') for s in x] for x in ARF_list_aa]
-            
+                        
             # filter by minimum length
             ORF_list_aa_flat = ORF_list_aa
-            ARF_list_aa_flat = [item for sublist in ARF_list_aa for item in sublist]
+            ARF_list_aa_flat = [item for sublist in ARF_list_aa for item in sublist]          
+            
             idx = [i for i in range(len(ORF_list_aa_flat)) if len(ORF_list_aa_flat[i]) >= min_len_aa]
             ORF_list_aa_flat_clean = []
             ARF_list_aa_flat_clean = []
@@ -297,7 +387,8 @@ def eye_of_psauron():
             for i in idx:
                 ORF_list_aa_flat_clean.append(ORF_list_aa_flat[i])
                 ARF_list_aa_flat_clean.extend(ARF_list_aa[i])
-                description_list_clean.append(description_list[i])
+                description_list_clean.append(description_list[i])               
+            
             print("Excluding", str(len(seq_list) - len(idx)), "proteins with length below m amino acids from analysis, m =", str(min_len_aa), "\n")
             if len(idx) == 0:
                 print("No data to score, please check data and/or arguments.")
@@ -337,7 +428,7 @@ def eye_of_psauron():
                     is_protein.append(True)
                 else:
                     is_protein.append(False)
-        
+                    
         
         # SINGLE FRAME SCORING, OPTIONAL BEHAVIOR
         else:
@@ -346,10 +437,10 @@ def eye_of_psauron():
             ORF_list_aa = []
             if verbose:
                 for i in tqdm(range(len(seq_list))):
-                    ORF_list_aa.append(Seq(seq_list[i]).translate())
+                    ORF_list_aa.append(translate(seq_list[i]))
             else:
                 for i in range(len(seq_list)):
-                    ORF_list_aa.append(Seq(seq_list[i]).translate())
+                    ORF_list_aa.append(translate(seq_list[i]))
                     
             # remove stop codons from alternate reading frames
             ORF_list_aa = [s.replace('*', '') for s in ORF_list_aa]
@@ -395,20 +486,19 @@ def eye_of_psauron():
     else:
         # load protein from fasta
         print("Loading protein FASTA...")
-        seq_list = []
-        contig_name_sublist = []
-        contig_length_sublist = []
-        description_list = []
+        description_list, seq_list = load_fasta(p_fasta)
         n_excluded = 0
-        with open(p_fasta, "rt") as f:
-            for record in SeqIO.parse(f, "fasta"):
-                if (len(args.exclude) > 0) and (args.exclude).lower() in (record.description).lower():
-                    n_excluded += 1
+        if args.exclude:
+            new_description_list = []
+            new_seq_list = []
+            for desc, seq in zip(description_list, seq_list):
+                if args.exclude.lower() not in desc.lower():
+                    new_description_list.append(desc)
+                    new_seq_list.append(seq)
                 else:
-                    seq_list.append(record.seq)
-                    contig_name_sublist.append(record.id)
-                    contig_length_sublist.append(len(record.seq))
-                    description_list.append(record.description)
+                    n_excluded += 1
+            description_list = new_description_list
+            seq_list = new_seq_list
                     
                 
         print("Loaded", str(len(seq_list)), "protein seqences...")
@@ -420,11 +510,8 @@ def eye_of_psauron():
             print("No data to score, please check data and/or arguments.")
             sys.exit()
             
-        # uppercase
-        seq_list = [str(x).upper() for x in seq_list]
-
-        # remove stop codons
-        ORF_list_aa = [Seq(x) for x in seq_list]
+        # uppercase and remove stop codons
+        ORF_list_aa = [str(x).upper() for x in seq_list]
         ORF_list_aa = [s.replace('*', '') for s in ORF_list_aa]
         
         # filter by minimum length
@@ -552,4 +639,7 @@ def eye_of_psauron():
                     f.write("\n")
     
     print("Done")
+    
+if __name__ == "__main__":
+    eye_of_psauron()
     
