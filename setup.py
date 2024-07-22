@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
     
 setup(
     name="psauron",
-    version="1.0.2",
+    version="1.0.3",
     description="A tool to assess protein coding gene annotation",
     packages=find_packages(),
     long_description=long_description,
@@ -26,7 +26,6 @@ setup(
                       "typing-extensions>=4.9.0",
                       "tqdm>=4.66.1",
                       "scipy>=1.10.1",
-                      "biopython>=1.83",
                       "numpy>=1.24.4",
                       "pandas>=2.0.3",
                       "setuptools"],
