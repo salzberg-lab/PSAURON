@@ -1,7 +1,7 @@
 import pytest
 import unittest
 
-from app.psauron import eye_of_psauron
+from psauron.psauron import eye_of_psauron
 
 def test_eye_of_psauron_protein():
     with unittest.mock.patch('sys.argv', ['psauron', '-i', 'tests/seq_test_protein.faa', '-p']):

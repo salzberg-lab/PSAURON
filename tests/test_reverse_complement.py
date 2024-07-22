@@ -1,4 +1,4 @@
-from app.psauron import reverse_complement
+from psauron.psauron import reverse_complement
 
 def test_reverse_complement_default():
     revcomp = reverse_complement("GATACA")

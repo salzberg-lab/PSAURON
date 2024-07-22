@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
     
 setup(
     name="psauron",
-    version="1.0.3",
+    version="1.0.4",
     description="A tool to assess protein coding gene annotation",
     packages=find_packages(),
     long_description=long_description,
@@ -35,7 +35,7 @@ setup(
     python_requires=">=3.8",
     entry_points={
         'console_scripts': [
-            'psauron = app.psauron:eye_of_psauron',
+            'psauron = psauron.psauron:eye_of_psauron',
         ],
     },
     include_package_data=True,

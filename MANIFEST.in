@@ -1,1 +1,1 @@
-include app/data/model_state_dict.pt
+include psauron/data/model_state_dict.pt
