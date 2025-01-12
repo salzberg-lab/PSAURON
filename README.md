@@ -5,7 +5,9 @@ PSAURON
 [![Pypi Release](https://badge.fury.io/py/psauron.svg)](https://pypi.org/project/psauron/)
 [![codecov](https://codecov.io/github/salzberg-lab/PSAURON/graph/badge.svg?token=GP88IZQFKA)](https://codecov.io/github/salzberg-lab/PSAURON)
 
-**PSAURON** is a machine learning model for rapid assessment of protein coding gene annotation. Link to paper coming soon...
+**PSAURON** is a machine learning model for rapid assessment of protein coding gene annotation. 
+
+M. J. Sommer, A. V. Zimin, S. L. Salzberg, PSAURON: a tool for assessing protein annotation across a broad range of species. NAR Genom. Bioinform. 7, lqae189 (2025). https://academic.oup.com/nargab/article/7/1/lqae189/7944703
 
 Installation
 ------------------
