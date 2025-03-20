@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
     
 setup(
     name="psauron",
-    version="1.0.4",
+    version="1.0.5",
     description="A tool to assess protein coding gene annotation",
     packages=find_packages(),
     long_description=long_description,
@@ -26,13 +26,13 @@ setup(
                       "typing-extensions>=4.9.0",
                       "tqdm>=4.66.1",
                       "scipy>=1.10.1",
-                      "numpy>=1.24.4",
-                      "pandas>=2.0.3",
+                      "numpy>=1.24.4, <2",
+                      "pandas",
                       "setuptools"],
     extras_require={
         "dev": ["pytest>=7.0", "twine>=4.0.2", "pytest-cov>=4.0", "wheel"],
     },
-    python_requires=">=3.8",
+    python_requires=">=3.9, <3.13",
     entry_points={
         'console_scripts': [
             'psauron = psauron.psauron:eye_of_psauron',
