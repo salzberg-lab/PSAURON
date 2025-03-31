@@ -1,5 +1,6 @@
 PSAURON
 ===========
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/psauron/README.html)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg "License")
 [![Pypi Release](https://badge.fury.io/py/psauron.svg)](https://pypi.org/project/psauron/)
