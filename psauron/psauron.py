@@ -249,7 +249,7 @@ def eye_of_psauron():
     warnings.filterwarnings('ignore')
     
     # print PSAURON version
-    version = "1.0.6"
+    version = "1.0.7"
     print("PSAURON version", version)
     
     # parse command line arguments
@@ -375,11 +375,23 @@ def eye_of_psauron():
             # remove stop codons from alternate reading frames
             ORF_list_aa = [s.replace('*', '') for s in ORF_list_aa]
             ARF_list_aa = [[s.replace('*', '') for s in x] for x in ARF_list_aa]
-                        
+            
+            # edge case where an ARF is composed entirely of stop codons...
+            ARF_list_aa_temp = []
+            for x in ARF_list_aa:
+                t = []
+                for y in x:
+                    if len(y) > 0:
+                        t.append(y)
+                    else:
+                        t.append("GALDALFELVIS")
+                ARF_list_aa_temp.append(t)
+            ARF_list_aa = ARF_list_aa_temp
+            
             # filter by minimum length
             ORF_list_aa_flat = ORF_list_aa
             ARF_list_aa_flat = [item for sublist in ARF_list_aa for item in sublist]          
-            
+
             idx = [i for i in range(len(ORF_list_aa_flat)) if len(ORF_list_aa_flat[i]) >= min_len_aa]
             ORF_list_aa_flat_clean = []
             ARF_list_aa_flat_clean = []
