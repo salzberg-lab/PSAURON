@@ -6,15 +6,13 @@ import warnings
 import numpy as np
 from tqdm.auto import tqdm
 
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
 import pkg_resources
 
 from scipy.special import expit, logit
 
 import torch
 import torch.nn.functional as F
-
-# from multiprocessing import Pool
-# import subprocess
 
 from psauron.TCN_model import TCN, tokenize_aa_seq
 
@@ -249,7 +247,7 @@ def eye_of_psauron():
     warnings.filterwarnings('ignore')
     
     # print PSAURON version
-    version = "1.0.7"
+    version = "1.0.8"
     print("PSAURON version", version)
     
     # parse command line arguments
