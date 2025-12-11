@@ -1,6 +1,7 @@
 PSAURON
 ===========
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/psauron/README.html)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/psauron?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/psauron)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg "License")
 [![Pypi Release](https://badge.fury.io/py/psauron.svg)](https://pypi.org/project/psauron/)
@@ -78,3 +79,4 @@ Example gffread commands to get CDS FASTA:
 gffread -x CDS_FASTA.fa -g genome.fa input.gff
 gffread -x CDS_FASTA.fa -g genome.fa input.gtf
 ```
+
