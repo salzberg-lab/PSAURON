@@ -76,13 +76,17 @@ def load_model(use_cpu):
     if torch.cuda.device_count() > 0 and not use_cpu:
         state_dict = torch.load(checkpoint)
     else:
-        state_dict = torch.load(checkpoint, map_location=torch.device('cpu'))
+        state_dict = torch.load(checkpoint, map_location=torch.device('mps' if torch.backends.mps.is_available() else 'cpu'))
         
     channel_sizes = [hidden_units_per_layer] * levels
     model = TCN(input_channels, n_classes, channel_sizes, kernel_size=kernel_size, dropout=dropout)
     model.load_state_dict(state_dict)
+    
     if torch.cuda.device_count() > 0 and not use_cpu:
         model.to('cuda')
+    elif torch.backends.mps.is_available() and not use_cpu:
+        model.to('mps')
+        
     model.eval()
     
     return model
@@ -173,6 +177,11 @@ def predict(X, model, use_cpu):
             probs = expit(model(X_enc).cpu())
             del X_enc
             torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available() and not use_cpu:
+            X_enc = F.one_hot(X, 21).permute(0,2,1).float().to('mps')
+            probs = expit(model(X_enc).cpu())
+            del X_enc
+            torch.mps.empty_cache()
         else:
             X_enc = F.one_hot(X, 21).permute(0,2,1).float()
             probs = expit(model(X_enc).cpu())
@@ -405,7 +414,7 @@ def eye_of_psauron():
                 sys.exit()
             
             # score all frames with model
-            if torch.cuda.device_count() > 0:
+            if torch.cuda.device_count() > 0 or torch.backends.mps.is_available():
                 if not use_cpu:
                     print("Running TCN model on GPU...")
                 else:
@@ -469,7 +478,7 @@ def eye_of_psauron():
                 sys.exit()
             
             # score single frame with model
-            if torch.cuda.device_count() > 0:
+            if torch.cuda.device_count() > 0 or torch.backends.mps.is_available():
                 if not use_cpu:
                     print("Running TCN model on GPU...")
                 else:
@@ -538,7 +547,7 @@ def eye_of_psauron():
             sys.exit()
         
         # score single frame with model
-        if torch.cuda.device_count() > 0:
+        if torch.cuda.device_count() > 0 or torch.backends.mps.is_available():
             if not use_cpu:
                 print("Running TCN model on GPU...")
             else:
