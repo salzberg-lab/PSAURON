@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#from torch.nn.utils.parametrizations import weight_norm # pytorch update
+import warnings
+warnings.filterwarnings("ignore", message=".*weight_norm.*", category=FutureWarning)
 from torch.nn.utils import weight_norm
 import numpy as np
 from scipy.special import expit

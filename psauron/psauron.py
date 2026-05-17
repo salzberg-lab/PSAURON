@@ -255,8 +255,8 @@ def eye_of_psauron():
     warnings.filterwarnings('ignore')
     
     # print PSAURON version
-    version = "1.0.8"
-    print("PSAURON version", version)
+    from psauron import __version__
+    print("PSAURON version", __version__)
     
     # parse command line arguments
     try:
