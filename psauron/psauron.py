@@ -6,8 +6,7 @@ import warnings
 import numpy as np
 from tqdm.auto import tqdm
 
-warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
-import pkg_resources
+from importlib.resources import files
 
 from scipy.special import expit, logit
 
@@ -60,7 +59,7 @@ def get_args():
     
 def get_data_path():
     # gets correct path to model weight data for installed package
-    return pkg_resources.resource_filename(__name__, 'data/model_state_dict.pt')
+    return str(files('psauron').joinpath('data/model_state_dict.pt'))
     
 def load_model(use_cpu):
     # load TCN model
