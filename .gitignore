@@ -2,4 +2,7 @@
 build/
 dist/
 __pycache__/
-psauron_score.csv
+*.csv
+*.fa
+*.fa.gz
+*.faa
