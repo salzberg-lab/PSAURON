@@ -1,3 +1,5 @@
 *.egg-info
 build/
 dist/
+__pycache__/
+psauron_score.csv
